@@ -718,15 +718,17 @@
 
     function configurarUISesion() {
       const enSesion = conectadoBT || modoArchivo;
+      const hayRevision = selectedId != null && registros.length > 1 && !$('detalle').classList.contains('hidden');
       const c = $('estado');
       c.textContent = conectadoBT ? t('estado_conn') : (modoArchivo ? t('estado_file') : t('estado_desc'));
       c.className = 'chip ' + (enSesion ? 'on' : 'off');
-      $('panel').classList.toggle('hidden', !enSesion);
+      $('panel').classList.toggle('hidden', !enSesion && !hayRevision);
       $('btnConectar').classList.toggle('hidden', enSesion);
       $('btnImportar').classList.toggle('hidden', enSesion);
       $('btnCerrar').classList.toggle('hidden', !enSesion);
       $('btnAyuda').classList.toggle('hidden', enSesion);   // "Cómo conectar" solo en la pantalla inicial
       $('langSel').classList.toggle('hidden', enSesion);    // selector de idioma solo en la pantalla de inicio
+      $('selVuelo').disabled = !conectadoBT && !modoArchivo;
       // Config, borrar y actualizar: solo con dispositivo por BT
       $('btnActualizar').classList.toggle('hidden', !conectadoBT);
       $('cfgCard').classList.toggle('hidden', !conectadoBT);
@@ -738,7 +740,7 @@
       if (!conectadoBT) debugOn = false;   // sin placa por BT no hay debug posible (y el reboot lo apaga)
       reflejarDebug();
       actualizarBotonesExport();
-      if (!enSesion) { $('sub').textContent = ''; $('sub').dataset.piloto = ''; }
+      if (!enSesion && !hayRevision) { $('sub').textContent = ''; $('sub').dataset.piloto = ''; }
     }
 
     function setEstado(conectado) {
@@ -917,8 +919,7 @@
     function cerrarSesion() {
       if (device && device.gatt.connected) device.gatt.disconnect();
       conectadoBT = false; modoArchivo = false;
-      flights = []; registros = []; selectedId = null; vuelosCache = {};
-      $('detalle').classList.add('hidden'); $('cargando').classList.add('hidden');
+      $('cargando').classList.add('hidden');
       renderLista();
       configurarUISesion();
     }
