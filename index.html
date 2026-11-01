@@ -124,7 +124,7 @@
   </style>
 </head>
 <body>
-  <button id="btnWebUpdate" class="ver sec mini" data-i18n="web_update_button" title="Web v3.1.18" disabled>⬆ Actualizar</button>
+  <button id="btnWebUpdate" class="ver sec mini" data-i18n="web_update_button" title="Web v3.1.21" disabled>⬆ Actualizar</button>
   <h1>🛩️ F5LControl <span id="webVersion" class="version-tag"></span> <span id="estado" class="chip off">Desconectado</span>
     <span id="langSel">
       <button id="langEs" class="flagbtn" title="Español (Argentina)" aria-label="Español"><svg viewBox="0 0 24 16" width="22" height="14" style="display:block;border-radius:2px"><rect width="24" height="16" fill="#74acdf"/><rect y="5.33" width="24" height="5.34" fill="#fff"/><circle cx="12" cy="8" r="1.7" fill="#f6b40e"/></svg></button>
@@ -396,6 +396,8 @@
       upd_ignorar:      { es: 'Ignorar',              en: 'Dismiss' },
       upd_ir:           { es: 'Ir a GitHub ↗',        en: 'Go to GitHub ↗' },
       vuelos_guardados: { es: 'Vuelos guardados',     en: 'Saved flights' },
+      all_flights_loading: { es: 'Descargando vuelos para el informe…', en: 'Downloading flights for report…' },
+      all_flights_error: { es: 'No se pudo completar el informe de vuelos:', en: 'Could not complete the all-flights report:' },
       web_update_button:{ es: '⬆ Actualizar', en: '⬆ Update' },
       web_new_available:{ es: 'Hay una nueva versión de la app (v{version}).', en: 'A new app version is available (v{version}).' },
       web_check_error:  { es: 'No se pudo comprobar la versión de Railway.', en: 'Could not check the Railway version.' },
@@ -669,7 +671,7 @@
     const CH_COMMAND = 'f1a70003-5b3c-4d9a-9e21-0a1b2c3d4e5f';
     const CH_DATA    = 'f1a70004-5b3c-4d9a-9e21-0a1b2c3d4e5f';
     const CH_OTA     = 'f1a70005-5b3c-4d9a-9e21-0a1b2c3d4e5f';   // OTA: bloques de firmware
-    const WEB_VERSION = '3.1.19'; // changelog de la Web en docs/history_WEB.md
+    const WEB_VERSION = '3.1.21'; // changelog de la Web en docs/history_WEB.md
 
     let device, chStatus, chCommand, chData, chOta;
     let flights = [];          // [{id, n, dur}]
@@ -678,6 +680,8 @@
     let selectedId = null;
     let allFlightsVisible = false;
     let allFlightsObserver = null;
+    let downloadingAllFlights = false;
+    let activeFlightDownloadId = null;
     let modo = null;           // 'list' | 'flight' | 'cfg'
     let chartMap = null;       // geometría del gráfico para el hover/zoom
     let tView = null;          // [t0,t1] visible (null = vuelo completo)
@@ -702,6 +706,8 @@
     let motivoActual = 0;      // motivo del vuelo mostrado
     let vueloInfo = null;      // análisis del vuelo (corte/aterrizaje/tiempo), lo llena dibujarGrafico
     let resolverDescarga = null;
+    let rechazarDescarga = null;
+    let timeoutDescarga = null;
     let resolverLista = null;      // resuelve al llegar FLIGHTS_END (para borrado en cadena)
     let borrandoTodos = false;     // evita pedir GETFS entre borrados masivos
     let fsAvisoLleno = false;      // ya se avisó del 80% en esta sesión
@@ -711,10 +717,31 @@
     function actualizarProgreso() {
       const n = registros.length;
       const pct = esperados > 0 ? Math.min(100, Math.round(n / esperados * 100)) : 0;
+      if (downloadingAllFlights) {
+        const cargados = flights.filter(flight => Array.isArray(vuelosCache[flight.id])).length;
+        const parcial = esperados > 0 ? Math.min(1, n / esperados) : 0;
+        $('cargBar').style.width = Math.min(100, Math.round((cargados + parcial) * 100 / flights.length)) + '%';
+        $('cargTxt').textContent = `${t('all_flights_loading')} ${cargados}/${flights.length} · ${t('flight_word')} ${activeFlightDownloadId} · ${n}/${esperados}`;
+        return;
+      }
       $('cargBar').style.width = pct + '%';
       $('cargTxt').textContent = esperados > 0
         ? `${t('cargando')}  ${n} / ${esperados}  (${pct}%)`
         : `${t('cargando')}  ${n}`;
+    }
+
+    function finalizarDescarga(error = null) {
+      if (timeoutDescarga) { clearTimeout(timeoutDescarga); timeoutDescarga = null; }
+      const resolve = resolverDescarga;
+      const reject = rechazarDescarga;
+      resolverDescarga = rechazarDescarga = null;
+      activeFlightDownloadId = null;
+      $('selVuelo').disabled = downloadingAllFlights || (!conectadoBT && !modoArchivo);
+      if (error) {
+        if (reject) reject(error);
+      } else if (resolve) {
+        resolve();
+      }
     }
 
     const $ = (id) => document.getElementById(id);
@@ -735,7 +762,7 @@
 
     function configurarUISesion() {
       const enSesion = conectadoBT || modoArchivo;
-      const hayRevision = selectedId != null && registros.length > 1 && !$('detalle').classList.contains('hidden');
+      const hayRevision = allFlightsVisible || (selectedId != null && registros.length > 1 && !$('detalle').classList.contains('hidden'));
       const c = $('estado');
       c.textContent = conectadoBT ? t('estado_conn') : (modoArchivo ? t('estado_file') : t('estado_desc'));
       c.className = 'chip ' + (enSesion ? 'on' : 'off');
@@ -765,7 +792,10 @@
       if (conectado) {
         modoArchivo = false; vuelosCache = {}; cfgReintentado = false;
         allFlightsVisible = false;
+        downloadingAllFlights = false;
         liberarReporteVuelos();
+      } else if (rechazarDescarga) {
+        finalizarDescarga(new Error('Bluetooth disconnected'));
       }
       configurarUISesion();
     }
@@ -939,6 +969,7 @@
     }
     function cerrarSesion() {
       if (device && device.gatt.connected) device.gatt.disconnect();
+      if (rechazarDescarga) finalizarDescarga(new Error('Bluetooth disconnected'));
       conectadoBT = false; modoArchivo = false;
       allFlightsVisible = false;
       liberarReporteVuelos();
@@ -955,7 +986,22 @@
         case 'FLIGHTS_START': modo = 'list';   flightsTmp = []; return;
         case 'FLIGHTS_END':   flights = flightsTmp.slice(); renderLista(); log(`Lista: ${flights.length} vuelos`); if (!borrandoTodos && !conectando) pedirFS(); if (resolverLista) { const r = resolverLista; resolverLista = null; r(); } return;  // refresca memoria; resuelve borrado en cadena
         case 'START':         modo = 'flight'; registros = []; motivoTmp = 0; actualizarProgreso(); return;
-        case 'END':           $('cargando').classList.add('hidden'); vuelosCache[selectedId] = registros.slice(); motivoCache[selectedId] = motivoTmp; renderDetalle(); log(`Vuelo ${selectedId}: ${registros.length} registros`); if (resolverDescarga) { const r = resolverDescarga; resolverDescarga = null; r(); } return;
+        case 'END': {
+          const id = activeFlightDownloadId != null ? activeFlightDownloadId : selectedId;
+          if (id == null) { log('Error DOWNLOAD: flight ID missing at END'); finalizarDescarga(new Error('Flight ID missing')); return; }
+          vuelosCache[id] = registros.slice();
+          motivoCache[id] = motivoTmp;
+          if (downloadingAllFlights) actualizarProgresoTodosVuelos(id);
+          else if (selectedId === id) {
+            $('cargando').classList.add('hidden');
+            renderDetalle();
+          } else {
+            $('cargando').classList.add('hidden');
+          }
+          log(`Vuelo ${id}: ${registros.length} registros`);
+          finalizarDescarga();
+          return;
+        }
         case 'CFG_START':     modo = 'cfg';    cfg = {}; return;
         case 'CFG_END':
           renderConfig(); log('Configuración recibida (' + Object.keys(cfg).length + ' campos)');
@@ -1393,7 +1439,7 @@
       $('cargTxt').textContent = t('cargando');
       $('cargando').classList.remove('hidden');
       try {
-        await enviar('DOWNLOAD:' + id);
+        await descargarVuelo(id);
       } catch (e) {
         log('Error DOWNLOAD: ' + e.message);
         $('cargando').classList.add('hidden');
@@ -1500,8 +1546,25 @@
       }
     }
 
-    function mostrarTodosVuelos() {
-      if (!modoArchivo || flights.length === 0) return;
+    function actualizarProgresoTodosVuelos(id) {
+      const cargados = flights.filter(flight => Array.isArray(vuelosCache[flight.id])).length;
+      $('cargBar').style.width = Math.round(cargados * 100 / flights.length) + '%';
+      $('cargTxt').textContent = `${t('all_flights_loading')} ${cargados}/${flights.length} · ${t('flight_word')} ${id}`;
+    }
+
+    function dibujarVueloReporteSiCerca(id) {
+      const svg = $('allFlightsReport').querySelector(`svg[data-flight-id="${id}"]`);
+      if (!svg || svg.dataset.rendered === 'true') return;
+      const rect = svg.getBoundingClientRect();
+      if (!('IntersectionObserver' in window) ||
+          (rect.bottom >= -450 && rect.top <= window.innerHeight + 450)) {
+        dibujarVueloReporte(svg, id);
+        svg.dataset.rendered = 'true';
+      }
+    }
+
+    async function mostrarTodosVuelos() {
+      if (flights.length === 0) return;
       allFlightsVisible = true;
       selectedId = null;
       registros = [];
@@ -1538,6 +1601,7 @@
         const svg = entry.target;
         if (entry.isIntersecting) {
           if (svg.dataset.rendered === 'true') return;
+          if (!Array.isArray(vuelosCache[svg.dataset.flightId])) return;
           dibujarVueloReporte(svg, +svg.dataset.flightId);
           svg.dataset.rendered = 'true';
         } else if (svg.dataset.rendered === 'true') {
@@ -1550,11 +1614,40 @@
         report.querySelectorAll('svg[data-flight-id]').forEach(svg => allFlightsObserver.observe(svg));
       } else {
         report.querySelectorAll('svg[data-flight-id]').forEach(svg => {
-          dibujarVueloReporte(svg, +svg.dataset.flightId);
-          svg.dataset.rendered = 'true';
+          if (Array.isArray(vuelosCache[svg.dataset.flightId])) {
+            dibujarVueloReporte(svg, +svg.dataset.flightId);
+            svg.dataset.rendered = 'true';
+          }
         });
       }
       renderLista();
+
+      const pendientes = flights.filter(flight => !Array.isArray(vuelosCache[flight.id]));
+      if (!pendientes.length) return;
+      if (!conectadoBT) {
+        log('No se puede completar el informe: faltan datos y no hay conexión Bluetooth.');
+        return;
+      }
+
+      downloadingAllFlights = true;
+      $('selVuelo').disabled = true;
+      $('cargando').classList.remove('hidden');
+      actualizarProgresoTodosVuelos(pendientes[0].id);
+      try {
+        for (const flight of pendientes) {
+          if (!conectadoBT) throw new Error('Bluetooth disconnected');
+          await descargarVuelo(flight.id);
+          dibujarVueloReporteSiCerca(flight.id);
+        }
+        log(`Informe completo: ${flights.length} vuelos`);
+      } catch (e) {
+        log(`${t('all_flights_error')} ${e.message}`);
+        mostrarToast(t('all_flights_error') + ' ' + e.message);
+      } finally {
+        downloadingAllFlights = false;
+        $('cargando').classList.add('hidden');
+        $('selVuelo').disabled = !conectadoBT && !modoArchivo;
+      }
     }
 
     function renderLista() {
@@ -1567,12 +1660,12 @@
       }
       flights.sort((a, b) => b.id - a.id);   // descendente: el más reciente primero
       const opts = [`<option value="">${t('sel_elegir')}</option>`];
-      if (modoArchivo) opts.push(`<option value="all">${t('all_flights')}</option>`);
+      opts.push(`<option value="all">${t('all_flights')}</option>`);
       flights.forEach(f => {
         opts.push(`<option value="${f.id}">${t('flight_word')} ${f.id}  ·  ${f.n} ${t('reg_word')}  ·  ${f.dur} s</option>`);
       });
       sel.innerHTML = opts.join('');
-      if (allFlightsVisible && modoArchivo) sel.value = 'all';
+      if (allFlightsVisible) sel.value = 'all';
       else if (selectedId != null && flights.some(f => f.id === selectedId)) sel.value = String(selectedId);
     }
 
@@ -2287,16 +2380,34 @@
     }
 
     // ---- Import / Export .vlo (formato propio, JSON) ----
-    function descargarVuelo(id) {           // promesa: descarga un vuelo y lo cachea (BT)
-      if (vuelosCache[id]) return Promise.resolve();
-      selectedId = id; registros = [];
-      const f = flights.find(x => x.id === id); esperados = f ? f.n : 0;
+    async function descargarVuelo(id) {
+      if (Array.isArray(vuelosCache[id])) return;
+      if (!conectadoBT) throw new Error('Bluetooth not connected');
+      if (activeFlightDownloadId != null) throw new Error('Another flight download is already in progress');
+
+      activeFlightDownloadId = id;
+      $('selVuelo').disabled = true;
+      registros = [];
+      motivoTmp = 0;
+      const f = flights.find(x => x.id === id);
+      esperados = f ? f.n : 0;
       $('cargBar').style.width = '0%';
-      $('cargTxt').textContent = `${t('dl_flight')} ${id}…`;
+      $('cargTxt').textContent = downloadingAllFlights
+        ? `${t('all_flights_loading')} · ${t('flight_word')} ${id}`
+        : `${t('dl_flight')} ${id}…`;
       $('cargando').classList.remove('hidden');
-      const p = new Promise(res => { resolverDescarga = res; });
-      enviar('DOWNLOAD:' + id).catch(() => {});
-      return p;
+
+      const done = new Promise((resolve, reject) => {
+        resolverDescarga = resolve;
+        rechazarDescarga = reject;
+        timeoutDescarga = setTimeout(() => finalizarDescarga(new Error('Download timed out')), 120000);
+      });
+      try {
+        await enviar('DOWNLOAD:' + id);
+      } catch (e) {
+        finalizarDescarga(e);
+      }
+      return done;
     }
 
     async function exportarVlo() {
