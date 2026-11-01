@@ -123,7 +123,7 @@
   </style>
 </head>
 <body>
-  <div id="ver" class="ver"></div>
+  <button id="ver" class="ver sec mini" data-i18n="web_check_btn" title="Web v3.1.18">↻ Buscar actualizaciones</button>
   <h1>🛩️ F5LControl <span id="estado" class="chip off">Desconectado</span>
     <span id="langSel">
       <button id="langEs" class="flagbtn" title="Español (Argentina)" aria-label="Español"><svg viewBox="0 0 24 16" width="22" height="14" style="display:block;border-radius:2px"><rect width="24" height="16" fill="#74acdf"/><rect y="5.33" width="24" height="5.34" fill="#fff"/><circle cx="12" cy="8" r="1.7" fill="#f6b40e"/></svg></button>
@@ -148,6 +148,12 @@
     <span id="updBannerTxt">🔔 Hay una versión más nueva. Se recomienda actualizar desde GitHub.</span>
     <span class="updbtns">
       <button id="updBannerIgnorar" class="sec mini">Ignorar</button>
+    </span>
+  </div>
+  <div id="webUpdateBanner" class="updbanner hidden">
+    <span id="webUpdateTxt"></span>
+    <span class="updbtns">
+      <button id="btnApplyWebUpdate" class="mini"></button>
     </span>
   </div>
 
@@ -392,6 +398,13 @@
       upd_ignorar:      { es: 'Ignorar',              en: 'Dismiss' },
       upd_ir:           { es: 'Ir a GitHub ↗',        en: 'Go to GitHub ↗' },
       vuelos_guardados: { es: 'Vuelos guardados',     en: 'Saved flights' },
+      web_check_btn:    { es: '↻ Buscar actualizaciones', en: '↻ Check updates' },
+      web_checking:     { es: 'Comprobando Railway…', en: 'Checking Railway…' },
+      web_latest:       { es: 'La app está actualizada (v{version}).', en: 'App is up to date (v{version}).' },
+      web_new_available:{ es: 'Hay una nueva versión de la app (v{version}).', en: 'A new app version is available (v{version}).' },
+      web_check_error:  { es: 'No se pudo comprobar la versión de Railway.', en: 'Could not check the Railway version.' },
+      web_apply_update: { es: 'Actualizar ahora', en: 'Update now' },
+      web_update_error: { es: 'No se pudo activar la actualización.', en: 'Could not activate the update.' },
       all_flights:     { es: 'Todos los vuelos',      en: 'All flights' },
       btnActualizar:    { es: '🔄 Actualizar',         en: '🔄 Refresh' },
       sin_vuelos:       { es: '— sin vuelos —',       en: '— no flights —' },
@@ -658,7 +671,7 @@
     const CH_COMMAND = 'f1a70003-5b3c-4d9a-9e21-0a1b2c3d4e5f';
     const CH_DATA    = 'f1a70004-5b3c-4d9a-9e21-0a1b2c3d4e5f';
     const CH_OTA     = 'f1a70005-5b3c-4d9a-9e21-0a1b2c3d4e5f';   // OTA: bloques de firmware
-    const WEB_VERSION = '3.1.17'; // changelog de la Web en docs/history_WEB.md
+    const WEB_VERSION = '3.1.18'; // changelog de la Web en docs/history_WEB.md
 
     let device, chStatus, chCommand, chData, chOta;
     let flights = [];          // [{id, n, dur}]
@@ -2512,9 +2525,88 @@
     $('grafico').addEventListener('pointerleave', (e) => { if (!dragging && pointers.size === 0) salirHover(); });
     $('grafico').addEventListener('dblclick', () => { tView = null; dibujarGrafico(); });
 
-    $('ver').textContent = 'Web v' + WEB_VERSION;
+    $('ver').textContent = t('web_check_btn');
+    $('ver').title = 'Web v' + WEB_VERSION;
     $('cfgWebVer').textContent = WEB_VERSION;
     $('btnUpd').onclick = buscarActualizaciones;
+    let webUpdateVersion = null;
+    $('ver').onclick = comprobarVersionRailway;
+    $('btnApplyWebUpdate').textContent = t('web_apply_update');
+    $('btnApplyWebUpdate').onclick = aplicarActualizacionWeb;
+
+    async function comprobarVersionRailway() {
+      const button = $('ver');
+      button.disabled = true;
+      button.textContent = t('web_checking');
+      try {
+        const url = new URL('./index.html', location.href);
+        url.searchParams.set('version_check', Date.now());
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        const html = await response.text();
+        const match = html.match(/\bconst\s+WEB_VERSION\s*=\s*['"]([^'"]+)['"]/);
+        if (!match) throw new Error('WEB_VERSION not found in deployed index.html');
+        webUpdateVersion = match[1];
+        if (cmpVer(webUpdateVersion, WEB_VERSION) > 0) {
+          $('webUpdateTxt').textContent = t('web_new_available').replace('{version}', webUpdateVersion);
+          $('webUpdateBanner').classList.remove('hidden');
+        } else {
+          $('webUpdateBanner').classList.add('hidden');
+          mostrarToast(t('web_latest').replace('{version}', WEB_VERSION));
+        }
+      } catch (e) {
+        log(t('web_check_error') + ' ' + e.message);
+        mostrarToast(t('web_check_error'));
+      } finally {
+        button.disabled = false;
+        button.textContent = t('web_check_btn');
+      }
+    }
+
+    async function aplicarActualizacionWeb() {
+      const button = $('btnApplyWebUpdate');
+      button.disabled = true;
+      try {
+        if (!('serviceWorker' in navigator)) {
+          location.reload();
+          return;
+        }
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (!registration) {
+          location.reload();
+          return;
+        }
+        await registration.update();
+
+        const startedAt = Date.now();
+        while (registration.installing &&
+               registration.installing.state !== 'installed' &&
+               !registration.waiting &&
+               Date.now() - startedAt < 30000) {
+          await sleep(150);
+        }
+        const worker = registration.waiting;
+        if (worker) {
+          await new Promise(resolve => {
+            let timer;
+            const done = () => {
+              clearTimeout(timer);
+              navigator.serviceWorker.removeEventListener('controllerchange', done);
+              resolve();
+            };
+            navigator.serviceWorker.addEventListener('controllerchange', done, { once: true });
+            timer = setTimeout(done, 8000);
+            worker.postMessage({ type: 'SKIP_WAITING' });
+          });
+        }
+        location.reload();
+      } catch (e) {
+        log(t('web_update_error') + ' ' + e.message);
+        mostrarToast(t('web_update_error'));
+        button.disabled = false;
+      }
+    }
+
     // Cartel automático de actualización: compara contra version.json del repo público.
     const REPO_URL = 'https://github.com/drsistemas01/F5LControl';
     // Chequeo de actualización: SOLO al conectar por BT (con cfg.VERSION ya cargado)
@@ -2553,7 +2645,9 @@
       } catch (e) { /* sin internet (campo): se ignora */ }
     }
     if (!navigator.bluetooth) mostrarAviso(t('av_nobt'), 'var(--warn)');
-    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(e => log('Error registrando service worker: ' + e.message));
+    }
   </script>
 </body>
 </html>
