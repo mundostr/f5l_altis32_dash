@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "F5L Altimeter Dashboard",
+  "name": "F5L Dashboard",
   "short_name": "F5L Dash",
-  "description": "Dashboard para recuperar y visualizar datos de vuelo de un altímetro F5L.",
+  "description": "Dashboard para recuperar y visualizar datos de vuelo.",
   "lang": "es",
   "start_url": "./",
   "scope": "./",
