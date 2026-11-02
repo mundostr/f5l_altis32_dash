@@ -116,7 +116,6 @@
     .updbanner.hidden { display: none; }   /* gana a `.updbanner { display:flex }` para que `hidden` oculte de verdad */
     .updbanner .updbtns { margin-left: auto; display: flex; gap: 8px; }
     .updbanner button { white-space: nowrap; }
-    .ver { position: fixed; top: 6px; right: 9px; font-size: .62rem; color: var(--muted); opacity: .75; z-index: 10; }
     #langSel { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; }
     .flagbtn { padding: 2px; background: transparent; border: 1px solid transparent; border-radius: 4px; cursor: pointer; line-height: 0; opacity: .4; transition: opacity .12s; }
     .flagbtn:hover { opacity: .8; }
@@ -124,7 +123,6 @@
   </style>
 </head>
 <body>
-  <button id="btnWebUpdate" class="ver sec mini" data-i18n="web_update_button" title="Web v3.1.22" disabled>⬆ Actualizar</button>
   <h1>🛩️ F5LControl <span id="webVersion" class="version-tag"></span> <span id="estado" class="chip off">Desconectado</span>
     <span id="langSel">
       <button id="langEs" class="flagbtn" title="Español (Argentina)" aria-label="Español"><svg viewBox="0 0 24 16" width="22" height="14" style="display:block;border-radius:2px"><rect width="24" height="16" fill="#74acdf"/><rect y="5.33" width="24" height="5.34" fill="#fff"/><circle cx="12" cy="8" r="1.7" fill="#f6b40e"/></svg></button>
@@ -153,6 +151,9 @@
   </div>
   <div id="webUpdateBanner" class="updbanner hidden">
     <span id="webUpdateTxt"></span>
+    <span class="updbtns">
+      <button id="btnWebApply" class="sec mini hidden" data-i18n="web_update_apply">Instalar actualización</button>
+    </span>
   </div>
 
   <div class="card">
@@ -163,7 +164,10 @@
     </div>
     <input id="fileVlo" type="file" accept=".vlo,application/json" style="display:none" />
     <p id="aviso" class="hint" style="margin:10px 0 0"></p>
-    <button id="btnAyuda" class="sec mini" style="margin-top:10px" data-i18n="btnAyuda">❓ Cómo conectar</button>
+    <div class="row" style="gap:8px;margin-top:10px">
+      <button id="btnAyuda" class="sec mini" style="margin:0" data-i18n="btnAyuda">❓ Cómo conectar</button>
+      <button id="btnWebUpdate" class="sec mini" style="margin:0" data-i18n="web_check_button">Check for update</button>
+    </div>
   </div>
 
   <!-- Modal: instrucciones de conexión (se abre con el botón "Cómo conectar") -->
@@ -398,8 +402,10 @@
       vuelos_guardados: { es: 'Vuelos guardados',     en: 'Saved flights' },
       all_flights_loading: { es: 'Descargando vuelos para el informe…', en: 'Downloading flights for report…' },
       all_flights_error: { es: 'No se pudo completar el informe de vuelos:', en: 'Could not complete the all-flights report:' },
-      web_update_button:{ es: '⬆ Actualizar', en: '⬆ Update' },
+      web_check_button: { es: 'Buscar actualizaciones', en: 'Check for update' },
+      web_update_apply: { es: 'Instalar actualización', en: 'Install update' },
       web_new_available:{ es: 'Hay una nueva versión de la app (v{version}).', en: 'A new app version is available (v{version}).' },
+      web_up_to_date:   { es: 'La app está actualizada (v{version}).', en: 'The app is up to date (v{version}).' },
       web_check_error:  { es: 'No se pudo comprobar la versión de Railway.', en: 'Could not check the Railway version.' },
       web_update_error: { es: 'No se pudo activar la actualización.', en: 'Could not activate the update.' },
       all_flights:     { es: 'Todos los vuelos',      en: 'All flights' },
@@ -649,8 +655,12 @@
         const sb = document.getElementById('sub');
         if (sb && sb.dataset.piloto) sb.textContent = t('sub_piloto') + ' ' + sb.dataset.piloto;
         const webUpdateTxt = document.getElementById('webUpdateTxt');
-        if (webUpdateTxt && webUpdateTxt.dataset.version)
+        if (webUpdateTxt && webUpdateTxt.dataset.status === 'available')
           webUpdateTxt.textContent = t('web_new_available').replace('{version}', webUpdateTxt.dataset.version);
+        else if (webUpdateTxt && webUpdateTxt.dataset.status === 'current')
+          webUpdateTxt.textContent = t('web_up_to_date').replace('{version}', WEB_VERSION);
+        else if (webUpdateTxt && webUpdateTxt.dataset.status === 'error')
+          webUpdateTxt.textContent = t('web_check_error');
       } catch (e) {}
     }
     function setLang(l) { try { localStorage.setItem('f5l_lang', l); } catch (e) {} applyLang(); }
@@ -671,7 +681,7 @@
     const CH_COMMAND = 'f1a70003-5b3c-4d9a-9e21-0a1b2c3d4e5f';
     const CH_DATA    = 'f1a70004-5b3c-4d9a-9e21-0a1b2c3d4e5f';
     const CH_OTA     = 'f1a70005-5b3c-4d9a-9e21-0a1b2c3d4e5f';   // OTA: bloques de firmware
-    const WEB_VERSION = '3.1.22'; // changelog de la Web en docs/history_WEB.md
+    const WEB_VERSION = '3.1.24'; // changelog de la Web en docs/history_WEB.md
 
     let device, chStatus, chCommand, chData, chOta;
     let flights = [];          // [{id, n, dur}]
@@ -2635,15 +2645,24 @@
     $('grafico').addEventListener('dblclick', () => { tView = null; dibujarGrafico(); });
 
     $('webVersion').textContent = 'v' + WEB_VERSION;
-    $('btnWebUpdate').title = 'Web v' + WEB_VERSION;
     $('cfgWebVer').textContent = WEB_VERSION;
     $('btnUpd').onclick = buscarActualizaciones;
     let webUpdateVersion = null;
-    $('btnWebUpdate').onclick = aplicarActualizacionWeb;
-
-    async function comprobarVersionRailway() {
+    $('btnWebUpdate').onclick = async () => {
       const button = $('btnWebUpdate');
       button.disabled = true;
+      try {
+        await comprobarVersionRailway();
+      } finally {
+        button.disabled = false;
+      }
+    };
+    $('btnWebApply').onclick = aplicarActualizacionWeb;
+
+    async function comprobarVersionRailway() {
+      const applyButton = $('btnWebApply');
+      applyButton.classList.add('hidden');
+      webUpdateVersion = null;
       try {
         const url = new URL('./index.html', location.href);
         url.searchParams.set('version_check', Date.now());
@@ -2654,23 +2673,30 @@
         if (!match) throw new Error('WEB_VERSION not found in deployed index.html');
         webUpdateVersion = match[1];
         const hayActualizacion = cmpVer(webUpdateVersion, WEB_VERSION) > 0;
-        button.disabled = !hayActualizacion;
         if (hayActualizacion) {
+          $('webUpdateTxt').dataset.status = 'available';
           $('webUpdateTxt').dataset.version = webUpdateVersion;
           $('webUpdateTxt').textContent = t('web_new_available').replace('{version}', webUpdateVersion);
-          $('webUpdateBanner').classList.remove('hidden');
+          applyButton.classList.remove('hidden');
         } else {
+          $('webUpdateTxt').dataset.status = 'current';
           delete $('webUpdateTxt').dataset.version;
-          $('webUpdateBanner').classList.add('hidden');
+          $('webUpdateTxt').textContent = t('web_up_to_date').replace('{version}', WEB_VERSION);
         }
+        $('webUpdateBanner').classList.remove('hidden');
+        return hayActualizacion;
       } catch (e) {
         log(t('web_check_error') + ' ' + e.message);
-        button.disabled = true;
+        $('webUpdateTxt').dataset.status = 'error';
+        delete $('webUpdateTxt').dataset.version;
+        $('webUpdateTxt').textContent = t('web_check_error');
+        $('webUpdateBanner').classList.remove('hidden');
+        return false;
       }
     }
 
     async function aplicarActualizacionWeb() {
-      const button = $('btnWebUpdate');
+      const button = $('btnWebApply');
       button.disabled = true;
       try {
         if (!('serviceWorker' in navigator)) {
@@ -2754,7 +2780,6 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').catch(e => log('Error registrando service worker: ' + e.message));
     }
-    comprobarVersionRailway();
   </script>
 </body>
 </html>
