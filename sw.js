@@ -1,4 +1,4 @@
-const CACHE_NAME = 'f5l-dash-v3.1.21';
+const CACHE_NAME = 'f5l-dash-v3.1.22';
 const SCOPE_URL = self.registration.scope;
 const INDEX_URL = new URL('./index.html', SCOPE_URL).href;
 const CORE_ASSETS = [
@@ -31,22 +31,14 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
 
   const url = new URL(request.url);
+  if (url.searchParams.has('version_check')) return;
   const isAppPage = url.pathname === new URL(INDEX_URL).pathname;
   if (request.mode === 'navigate' || isAppPage) {
     event.respondWith((async () => {
-      try {
-        const response = await fetch(request, { cache: 'no-store' });
-        if (response.ok) {
-          const cache = await caches.open(CACHE_NAME);
-          await cache.put(INDEX_URL, response.clone());
-        }
-        return response;
-      } catch (error) {
-        const cached = await caches.match(request, { ignoreSearch: true })
-          || await caches.match(INDEX_URL);
-        if (cached) return cached;
-        throw error;
-      }
+      const cached = await caches.match(request, { ignoreSearch: true })
+        || await caches.match(INDEX_URL);
+      if (cached) return cached;
+      return fetch(request);
     })());
     return;
   }
