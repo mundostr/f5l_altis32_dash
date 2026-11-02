@@ -167,7 +167,7 @@
     <p id="aviso" class="hint" style="margin:10px 0 0"></p>
     <div class="row" style="gap:8px;margin-top:10px">
       <button id="btnAyuda" class="sec mini" style="margin:0" data-i18n="btnAyuda">❓ Cómo conectar</button>
-      <button id="btnWebUpdate" class="sec mini update-check" style="margin:0" data-i18n="web_check_button">Check for updates</button>
+      <button id="btnWebUpdate" class="sec mini update-check" style="margin:0" data-i18n="web_check_button">Check updates</button>
     </div>
   </div>
 
@@ -292,7 +292,7 @@
           <div class="hint" style="margin-top:6px;color:var(--warn)" data-i18n-html="dbg_warn">⚠️ Solo para diagnóstico con la placa conectada por USB. <b>NO dejarlo activado para volar</b> (imprime por cada muestra y puede molestar al logging). <b>Queda guardado en memoria y sigue activo aunque reinicies la placa</b> hasta que lo desactives acá.</div>
           <div id="otaSection" class="hidden" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
             <div class="lbl" style="margin-bottom:4px" data-i18n="ota_titulo">⬆️ Actualizar firmware por Bluetooth</div>
-            <div class="hint" style="margin-bottom:6px" data-i18n="ota_usa_buscar">Usá "Buscar actualizaciones" para actualizar automáticamente desde el repositorio.</div>
+            <div class="hint" style="margin-bottom:6px" data-i18n="ota_usa_buscar">Usá "Buscar updates" para actualizar manualmente desde el repo.</div>
             <input type="file" id="otaFile" accept=".bin" style="font-size:13px;max-width:100%" />
             <button id="btnOta" class="sec mini" style="margin-top:8px" data-i18n="ota_btn">Actualizar firmware</button>
             <div class="hint" style="margin-top:5px" data-i18n-html="ota_ayuda">Elegí el archivo <b>firmware.bin</b> y esperá. Si algo falla o se corta, el equipo sigue con la versión actual.</div>
@@ -324,7 +324,7 @@
           <div><span data-i18n="info_dev">Desarrollador:</span> <b id="cfgDev">–</b></div>
           <div><span data-i18n="info_baro">Barómetro:</span> <b id="cfgBaro">–</b></div>
           <div><span data-i18n="info_lcd">Soporte LCD:</span> <b id="cfgLcd">–</b></div>
-          <button id="btnUpd" class="sec mini" style="margin-top:8px" data-i18n="btn_upd">🔄 Buscar actualizaciones</button>
+          <button id="btnUpd" class="sec mini" style="margin-top:8px" data-i18n="btn_upd">🔄 Buscar updates</button>
           <div id="updateInfo" style="margin-top:6px"></div>
         </div>
         <div id="fsBox" class="cfginfo hidden" style="margin-top:10px">
@@ -403,8 +403,8 @@
       vuelos_guardados: { es: 'Vuelos guardados',     en: 'Saved flights' },
       all_flights_loading: { es: 'Descargando vuelos para el informe…', en: 'Downloading flights for report…' },
       all_flights_error: { es: 'No se pudo completar el informe de vuelos:', en: 'Could not complete the all-flights report:' },
-      web_check_button: { es: 'Buscar actualizaciones', en: 'Check for updates' },
-      web_update_apply: { es: 'Instalar actualización', en: 'Install update' },
+      web_check_button: { es: 'Buscar updates', en: 'Check updates' },
+      web_update_apply: { es: 'Instalar update', en: 'Install update' },
       web_new_available:{ es: 'Hay una nueva versión de la app (v{version}).', en: 'A new app version is available (v{version}).' },
       web_up_to_date:   { es: 'La app está actualizada (v{version}).', en: 'The app is up to date (v{version}).' },
       web_check_error:  { es: 'No se pudo comprobar la versión de Railway.', en: 'Could not check the Railway version.' },
@@ -484,7 +484,7 @@
       info_dev:     { es: 'Desarrollador:', en: 'Developer:' },
       info_baro:    { es: 'Barómetro:', en: 'Barometer:' },
       info_lcd:     { es: 'Soporte LCD:', en: 'Display support:' },
-      btn_upd:      { es: '🔄 Buscar actualizaciones', en: '🔄 Check for updates' },
+      btn_upd:      { es: '🔄 Buscar updates', en: '🔄 Check updates' },
       fs_hdr:       { es: 'Memoria de vuelos', en: 'Flight memory' },
       btn_borrartodos: { es: '🗑 Borrar todos los vuelos', en: '🗑 Delete all flights' },
       lim_hdr:      { es: 'Límites del limitador (fijos por reglas de la categoría — no editables):', en: 'Limiter values (fixed by category rules — not editable):' },
@@ -530,7 +530,7 @@
       ota_nobin:    { es: 'No se encontró ese firmware en el repo', en: 'Firmware not found in the repo' },
       ota_repo_btn: { es: '⬆️ Actualizar por Bluetooth', en: '⬆️ Update over Bluetooth' },
       ota_repo_conf:{ es: '¿Actualizar el firmware por Bluetooth a la versión', en: 'Update firmware over Bluetooth to version' },
-      ota_usa_buscar:{ es: 'Usá "Buscar actualizaciones" para actualizar automáticamente desde el repositorio.', en: 'Use "Check for updates" to update automatically from the repository.' },
+      ota_usa_buscar:{ es: 'Usá "Buscar updates" para actualizar manualmente desde el repositorio.', en: 'Use "Check updates" to update manually from the repo.' },
       ota_avz:      { es: '⚙️ Opción avanzada (por archivo)', en: '⚙️ Advanced option (from file)' },
       btn_pwm:      { es: '📡 Leer PWM del receptor', en: '📡 Read receiver PWM' },
       pwmmon_on:    { es: '▶️ Monitor PWM en vivo', en: '▶️ Live PWM monitor' },
@@ -682,7 +682,7 @@
     const CH_COMMAND = 'f1a70003-5b3c-4d9a-9e21-0a1b2c3d4e5f';
     const CH_DATA    = 'f1a70004-5b3c-4d9a-9e21-0a1b2c3d4e5f';
     const CH_OTA     = 'f1a70005-5b3c-4d9a-9e21-0a1b2c3d4e5f';   // OTA: bloques de firmware
-    const WEB_VERSION = '3.1.25'; // changelog de la Web en docs/history_WEB.md
+    const WEB_VERSION = '3.1.26'; // changelog de la Web en docs/history_WEB.md
 
     let device, chStatus, chCommand, chData, chOta;
     let flights = [];          // [{id, n, dur}]
@@ -1210,7 +1210,7 @@
       $('initInfo').innerHTML = html;
     }
 
-    // ---- Buscar actualizaciones (compara contra version.json publicado) ----
+    // ---- Buscar updates (compara contra version.json publicado) ----
     // Se lee del repo PÚBLICO F5LControl vía GitHub Pages (drsistemas01.github.io).
     // Se usa Pages en vez de raw.githubusercontent porque raw sufre 503 transitorios
     // ("Backend.max_conn reached") con cierta frecuencia; Pages es mucho más estable y
