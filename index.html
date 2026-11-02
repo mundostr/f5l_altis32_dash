@@ -32,6 +32,7 @@
     button.sec { background: #2a3752; }
     button.danger { background: #7a2531; }
     button.mini { padding: 8px 12px; font-size: .95rem; }
+    button.update-check, button.update-check:disabled { opacity: 1; }
     button.ok-flash { background: #2ca24a !important; transition: background .15s; }
     .toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(12px); background: #1f2a44; color: #fff; border: 1px solid #39507e; padding: 11px 18px; border-radius: 11px; font-size: 14px; font-weight: 700; box-shadow: 0 8px 24px rgba(0,0,0,.45); opacity: 0; transition: opacity .18s ease, transform .18s ease; z-index: 99999; pointer-events: none; }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -166,7 +167,7 @@
     <p id="aviso" class="hint" style="margin:10px 0 0"></p>
     <div class="row" style="gap:8px;margin-top:10px">
       <button id="btnAyuda" class="sec mini" style="margin:0" data-i18n="btnAyuda">❓ Cómo conectar</button>
-      <button id="btnWebUpdate" class="sec mini" style="margin:0" data-i18n="web_check_button">Check for update</button>
+      <button id="btnWebUpdate" class="sec mini update-check" style="margin:0" data-i18n="web_check_button">Check for updates</button>
     </div>
   </div>
 
@@ -402,7 +403,7 @@
       vuelos_guardados: { es: 'Vuelos guardados',     en: 'Saved flights' },
       all_flights_loading: { es: 'Descargando vuelos para el informe…', en: 'Downloading flights for report…' },
       all_flights_error: { es: 'No se pudo completar el informe de vuelos:', en: 'Could not complete the all-flights report:' },
-      web_check_button: { es: 'Buscar actualizaciones', en: 'Check for update' },
+      web_check_button: { es: 'Buscar actualizaciones', en: 'Check for updates' },
       web_update_apply: { es: 'Instalar actualización', en: 'Install update' },
       web_new_available:{ es: 'Hay una nueva versión de la app (v{version}).', en: 'A new app version is available (v{version}).' },
       web_up_to_date:   { es: 'La app está actualizada (v{version}).', en: 'The app is up to date (v{version}).' },
@@ -681,7 +682,7 @@
     const CH_COMMAND = 'f1a70003-5b3c-4d9a-9e21-0a1b2c3d4e5f';
     const CH_DATA    = 'f1a70004-5b3c-4d9a-9e21-0a1b2c3d4e5f';
     const CH_OTA     = 'f1a70005-5b3c-4d9a-9e21-0a1b2c3d4e5f';   // OTA: bloques de firmware
-    const WEB_VERSION = '3.1.24'; // changelog de la Web en docs/history_WEB.md
+    const WEB_VERSION = '3.1.25'; // changelog de la Web en docs/history_WEB.md
 
     let device, chStatus, chCommand, chData, chOta;
     let flights = [];          // [{id, n, dur}]

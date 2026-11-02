@@ -1,4 +1,4 @@
-const CACHE_NAME = 'f5l-dash-v3.1.24';
+const CACHE_NAME = 'f5l-dash-v3.1.25';
 const SCOPE_URL = self.registration.scope;
 const INDEX_URL = new URL('./index.html', SCOPE_URL).href;
 const CORE_ASSETS = [
